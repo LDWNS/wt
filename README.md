@@ -9,3 +9,8 @@ wt list                     # list all worktrees
 wt link                     # symlink .wt-include dirs into current worktree
 wt completion zsh           # print zsh completion script
 ```
+
+# build
+```bash
+go build -o wt
+```
