@@ -14,3 +14,20 @@ wt completion zsh           # print zsh completion script
 ```bash
 go build -o wt
 ```
+
+# Change directories
+To make changing directories work, add this to your `~/.zshrc`.
+```bash
+# wt — worktree manager (shell wrapper for cd support)
+wt() {
+  local out exit_code
+  out=$(command wt "$@")
+  exit_code=$?
+  if [[ -n "$out" && -d "$out" ]]; then
+    cd "$out"
+  elif [[ -n "$out" ]]; then
+    print -- "$out"
+  fi
+  return $exit_code
+}
+```
