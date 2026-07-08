@@ -388,7 +388,7 @@ func cmdClone(args []string) error {
 	pwd := exec.Command("pwd")
 	pwd.Stdout = os.Stderr
 	pwd.Stderr = os.Stderr
-	if out, err := cd_main.Output(); err == nil {
+	if out, err := pwd.Output(); err == nil {
 		fmt.Print(string(out))
 	}
 	return nil
