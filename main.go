@@ -451,6 +451,7 @@ _wt() {
         command)
             local commands
             commands=(
+                'main:print main worktree path'
                 'list:list all worktrees'
                 'ls:list all worktrees'
                 'add:add a new worktree'
