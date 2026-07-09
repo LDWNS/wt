@@ -1,4 +1,4 @@
-# worktree manager
+# Worktree manager
 
 ```bash
 wt                          # fzf picker, enter to cd
@@ -34,10 +34,14 @@ wt() {
 }
 ```
 
+> [!NOTE]
+> Don't forget to run `source .zshrc` or `zsh` for the changes to take effect.
+
 # Completion
 
 Add the following line to your ~/.zshrc
 ```bash
 source <(wt completion zsh)
+
 ```
 ```
