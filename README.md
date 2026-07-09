@@ -10,10 +10,12 @@ wt link                     # symlink .wt-include dirs into current worktree
 wt completion zsh           # print zsh completion script
 ```
 
-# build
+# Build
 ```bash
 go build -o wt
 ```
+> [!NOTE]
+> Add this to your path, e.g. `export PATH=$HOME/<path to cloned directory>/wt:$PATH`
 
 # Change directories
 To make changing directories work, add this to your `~/.zshrc`.
@@ -30,4 +32,12 @@ wt() {
   fi
   return $exit_code
 }
+```
+
+# Completion
+
+Add the following line to your ~/.zshrc
+```bash
+source <(wt completion zsh)
+```
 ```
