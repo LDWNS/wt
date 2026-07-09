@@ -42,6 +42,4 @@ wt() {
 Add the following line to your ~/.zshrc
 ```bash
 source <(wt completion zsh)
-
-```
 ```
