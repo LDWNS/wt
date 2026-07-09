@@ -43,3 +43,6 @@ Add the following line to your ~/.zshrc
 ```bash
 source <(wt completion zsh)
 ```
+> [!NOTE]
+> Don't forget to run `source .zshrc` or `zsh` for the changes to take effect.
+
