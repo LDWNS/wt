@@ -1,4 +1,5 @@
 # Worktree manager
+Buddy, worktrees are now easy. Don't even worry about it.
 
 ## Usage
 
