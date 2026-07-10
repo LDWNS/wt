@@ -8,6 +8,7 @@ Follow it and be happy.
 
 ### Dependencies
 - git
+- [go](https://go.dev/doc/install)
 - [fzf](https://github.com/junegunn/fzf) (`brew install fzf`)
 
 ### Setup
