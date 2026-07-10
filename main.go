@@ -248,7 +248,41 @@ func cmdAdd(args []string) error {
 	return symlinkIncluded(cwd, dest)
 }
 
+func worktreeSafetyIssue(wtPath string) (string, error) {
+	statusOut, err := exec.Command("git", "-C", wtPath, "status", "--porcelain").Output()
+	if err != nil {
+		return "", fmt.Errorf("checking status: %w", err)
+	}
+	if len(strings.TrimSpace(string(statusOut))) > 0 {
+		return "uncommitted changes", nil
+	}
+
+	if err := exec.Command("git", "-C", wtPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}").Run(); err != nil {
+		return "no upstream branch (unpushed)", nil
+	}
+
+	countOut, err := exec.Command("git", "-C", wtPath, "rev-list", "--count", "@{u}..HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("checking unpushed commits: %w", err)
+	}
+	if count := strings.TrimSpace(string(countOut)); count != "" && count != "0" {
+		return fmt.Sprintf("%s unpushed commit(s)", count), nil
+	}
+	return "", nil
+}
+
 func cmdRm(args []string) error {
+	force := false
+	var rest []string
+	for _, a := range args {
+		if a == "--force" || a == "-f" {
+			force = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	args = rest
+
 	wts, err := listWorktrees()
 	if err != nil {
 		return err
@@ -278,6 +312,14 @@ func cmdRm(args []string) error {
 			if wtPath == "" {
 				return fmt.Errorf("worktree %q not found", name)
 			}
+		}
+	}
+
+	if !force {
+		if issue, err := worktreeSafetyIssue(wtPath); err != nil {
+			return err
+		} else if issue != "" {
+			return fmt.Errorf("refusing to remove %s: %s (use --force to override)", wtPath, issue)
 		}
 	}
 
@@ -495,7 +537,7 @@ func printHelp() {
 	fmt.Print(`wt — worktree manager
   wt              fzf picker, enter to cd
   wt add <n> [b]           add worktree at ../<n>, symlink .wt-include dirs
-  wt rm [name]             remove worktree (fzf if omitted)
+  wt rm [name] [--force]   remove worktree (fzf if omitted); refuses if dirty/unpushed
   wt clone <url> [name]   SSH bare clone into ./<name>/.git, fix fetch refspec
   wt list                  list all worktrees
   wt link                  symlink .wt-include dirs into current worktree
