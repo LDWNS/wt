@@ -406,33 +406,19 @@ func cmdClone(args []string) error {
 		return err
 	}
 
-	cd_name := exec.Command("cd", name)
-	cd_name.Stdout = os.Stderr
-	cd_name.Stderr = os.Stderr
-	if err := cd_name.Run(); err != nil {
+	mainDir, err := filepath.Abs(filepath.Join(name, "main"))
+	if err != nil {
 		return err
 	}
 
-	init_main := exec.Command("git", "worktree", "add", "main")
-	init_main.Stdout = os.Stderr
-	init_main.Stderr = os.Stderr
-	if err := init_main.Run(); err != nil {
+	worktreeAdd := exec.Command("git", "-C", dotgit, "worktree", "add", mainDir, "main")
+	worktreeAdd.Stdout = os.Stderr
+	worktreeAdd.Stderr = os.Stderr
+	if err := worktreeAdd.Run(); err != nil {
 		return err
 	}
 
-	cd_main := exec.Command("cd", "main")
-	cd_main.Stdout = os.Stderr
-	cd_main.Stderr = os.Stderr
-	if err := cd_main.Run(); err != nil {
-		return err
-	}
-
-	pwd := exec.Command("pwd")
-	pwd.Stdout = os.Stderr
-	pwd.Stderr = os.Stderr
-	if out, err := pwd.Output(); err == nil {
-		fmt.Print(string(out))
-	}
+	fmt.Println(mainDir)
 	return nil
 }
 
