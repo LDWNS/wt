@@ -33,6 +33,8 @@ func main() {
 		err = cmdClone(args)
 	case "link":
 		err = cmdLink()
+	case "include":
+		err = cmdInclude(args)
 	case "completion":
 		err = cmdCompletion(args)
 	case "__complete":
@@ -437,6 +439,87 @@ func cmdLink() error {
 	return symlinkIncluded(mainRoot, current)
 }
 
+func gitCommonDir(root string) (string, error) {
+	out, err := exec.Command("git", "-C", root, "rev-parse", "--git-common-dir").Output()
+	if err != nil {
+		return "", fmt.Errorf("not in a git repo")
+	}
+	dir := strings.TrimSpace(string(out))
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(root, dir)
+	}
+	return dir, nil
+}
+
+func appendLineIfMissing(path, line string) (bool, error) {
+	if existing, err := os.ReadFile(path); err == nil {
+		for _, l := range strings.Split(string(existing), "\n") {
+			if strings.TrimSpace(l) == line {
+				return false, nil
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return false, err
+	}
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	if _, err := fmt.Fprintln(f, line); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func cmdInclude(args []string) error {
+	root, err := gitToplevel()
+	if err != nil {
+		return err
+	}
+	incFile := filepath.Join(root, ".wt-include")
+
+	if len(args) == 0 {
+		data, err := os.ReadFile(incFile)
+		if os.IsNotExist(err) {
+			fmt.Println("(no .wt-include file)")
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Print(string(data))
+		return nil
+	}
+
+	for _, path := range args {
+		added, err := appendLineIfMissing(incFile, path)
+		if err != nil {
+			return err
+		}
+		if added {
+			fmt.Fprintf(os.Stderr, "  added: %s\n", path)
+		} else {
+			fmt.Fprintf(os.Stderr, "  already present: %s\n", path)
+		}
+	}
+
+	commonDir, err := gitCommonDir(root)
+	if err != nil {
+		return err
+	}
+	excludeFile := filepath.Join(commonDir, "info", "exclude")
+	if err := os.MkdirAll(filepath.Dir(excludeFile), 0o755); err != nil {
+		return err
+	}
+	if _, err := appendLineIfMissing(excludeFile, ".wt-include"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func cmdComplete(args []string) error {
 	if len(args) == 0 {
 		return nil
@@ -487,6 +570,7 @@ _wt() {
                 'remove:remove a worktree'
                 'clone:clone a repo via SSH'
                 'link:symlink .wt-include dirs into current worktree'
+                'include:add path to .wt-include (git-excluded)'
                 'help:show help'
                 'completion:print shell completion script'
             )
@@ -527,6 +611,7 @@ func printHelp() {
   wt clone <url> [name]   SSH bare clone into ./<name>/.git, fix fetch refspec
   wt list                  list all worktrees
   wt link                  symlink .wt-include dirs into current worktree
+  wt include [path...]     add path(s) to .wt-include (creates it, git-excludes it); no args prints it
   wt completion zsh        print zsh completion script
 `)
 }
