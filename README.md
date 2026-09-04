@@ -56,6 +56,16 @@ wt() {
 > [!NOTE]
 > Don't forget to run `source .zshrc` or `zsh` for the changes to take effect.
 
+## Prompt integration
+
+`wt current-repo` prints `本 <repo>` when cwd is inside a linked worktree (not the main one), and nothing when it isn't. Add it to `~/.zshrc` for use in `PROMPT`/`RPROMPT` or Starship's `command` module:
+
+```bash
+RPROMPT='$(wt current-repo)'
+```
+
+The repo name comes from the repo's base dir (parent of `.git`), so it's the same across every worktree in the repo.
+
 ## Completion
 
 Add the following line to your ~/.zshrc
@@ -76,5 +86,6 @@ wt rm [name]                # remove worktree (fzf if omitted)
 wt clone <url> [name]       # SSH bare clone into ./<name>/.git, fix fetch refspec
 wt list                     # list all worktrees
 wt link                     # symlink .wt-include dirs into current worktree
+wt current-repo             # print "本 <repo>" if cwd is a linked worktree, for shell prompts
 wt completion zsh           # print zsh completion script
 ```

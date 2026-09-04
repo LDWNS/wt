@@ -35,6 +35,8 @@ func main() {
 		err = cmdLink()
 	case "include":
 		err = cmdInclude(args)
+	case "current-repo":
+		err = cmdCurrent()
 	case "completion":
 		err = cmdCompletion(args)
 	case "__complete":
@@ -346,7 +348,12 @@ func cmdRm(args []string) error {
 		}
 	}
 
-	rm := exec.Command("git", "worktree", "remove", wtPath)
+	rmArgs := []string{"worktree", "remove"}
+	if force {
+		rmArgs = append(rmArgs, "--force")
+	}
+	rmArgs = append(rmArgs, wtPath)
+	rm := exec.Command("git", rmArgs...)
 	rm.Stdout = os.Stderr
 	rm.Stderr = os.Stderr
 	return rm.Run()
@@ -520,6 +527,49 @@ func cmdInclude(args []string) error {
 	return nil
 }
 
+// resolvedAbs returns an absolute, symlink-resolved form of path, for
+// reliable comparison of git-dir paths across worktrees.
+func resolvedAbs(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if real, err := filepath.EvalSymlinks(abs); err == nil {
+		return real, nil
+	}
+	return abs, nil
+}
+
+// cmdCurrent prints an icon and repo name when cwd is inside a linked
+// worktree (not the main one), and nothing otherwise. Meant to be
+// called from a shell prompt, e.g. RPROMPT='$(wt current-repo)'.
+func cmdCurrent() error {
+	gitDirOut, err := exec.Command("git", "rev-parse", "--git-dir").Output()
+	if err != nil {
+		return nil // not a git repo
+	}
+	commonDirOut, err := exec.Command("git", "rev-parse", "--git-common-dir").Output()
+	if err != nil {
+		return nil
+	}
+
+	gitDir, err := resolvedAbs(strings.TrimSpace(string(gitDirOut)))
+	if err != nil {
+		return nil
+	}
+	commonDir, err := resolvedAbs(strings.TrimSpace(string(commonDirOut)))
+	if err != nil {
+		return nil
+	}
+
+	if gitDir == commonDir {
+		return nil // main worktree
+	}
+
+	fmt.Printf("木%s\n", filepath.Base(filepath.Dir(commonDir)))
+	return nil
+}
+
 func cmdComplete(args []string) error {
 	if len(args) == 0 {
 		return nil
@@ -571,6 +621,7 @@ _wt() {
                 'clone:clone a repo via SSH'
                 'link:symlink .wt-include dirs into current worktree'
                 'include:add path to .wt-include (git-excluded)'
+                'current-repo:print worktree icon+name for shell prompts'
                 'help:show help'
                 'completion:print shell completion script'
             )
@@ -612,6 +663,7 @@ func printHelp() {
   wt list                  list all worktrees
   wt link                  symlink .wt-include dirs into current worktree
   wt include [path...]     add path(s) to .wt-include (creates it, git-excludes it); no args prints it
+  wt current-repo          print "本 <repo>" if cwd is a linked worktree, nothing otherwise (for shell prompts)
   wt completion zsh        print zsh completion script
 `)
 }
