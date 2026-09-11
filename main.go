@@ -27,7 +27,7 @@ func main() {
 	}
 
 	switch cmd {
-	case "":
+	case "", "switch":
 		err = cmdNavigate()
 	case "main":
 		err = toMain()
@@ -370,7 +370,11 @@ func cmdRm(args []string) error {
 	rm := exec.Command("git", rmArgs...)
 	rm.Stdout = os.Stderr
 	rm.Stderr = os.Stderr
-	return rm.Run()
+	if err := rm.Run(); err != nil {
+		return err
+	}
+	fmt.Println(wtPath)
+	return nil
 }
 
 func sshURLName(url string) string {
@@ -641,6 +645,7 @@ _wt() {
             local commands
             commands=(
                 'main:print main worktree path'
+                'switch:fzf picker, enter to cd (alias for bare wt)'
                 'list:list all worktrees'
                 'ls:list all worktrees'
                 'add:add a new worktree'
@@ -689,6 +694,7 @@ compdef _wt wt
 func printHelp() {
 	fmt.Print(`wt — worktree manager
   wt              fzf picker, enter to cd
+  wt switch                alias for bare "wt"; herdr integration (if configured) only fires on this
   wt add <n> [b]           add worktree at ../<n>, symlink .wt-include dirs
   wt rm [name] [--force]   remove worktree (fzf if omitted); refuses if dirty/unpushed
   wt clone <url|owner/repo> [name]   SSH bare clone into ./<name>/.git, fix fetch refspec

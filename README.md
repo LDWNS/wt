@@ -19,6 +19,7 @@ wt
 
 `wt add <n> [b]` - sets up a worktree named `<n>`, optionally tracking branch `[b]`.
 `wt` - launches `fzf` with the worktrees you can check out.
+`wt switch` - alias for bare `wt`; only this form triggers the herdr integration below.
 `wt rm` - launches `fzf` with the worktrees you can remove.
 
 Easy right?
@@ -87,6 +88,53 @@ wt() {
 > [!NOTE]
 > Don't forget to run `source .zshrc` or `zsh` for the changes to take effect.
 
+### herdr integration
+
+If [herdr](https://herdr.dev) is installed and you're running inside a herdr pane
+(`$HERDR_ENV` set), `wt switch` (an explicit alias for the bare fuzzy-picker) can also ensure
+there's one herdr tab per worktree — reusing the existing tab for a worktree instead of opening
+a duplicate, and closing it on `wt rm`. Other commands (`add`, `clone`, `link`, ...) still just
+`cd`, with no herdr involvement. Extend the wrapper above with:
+
+```bash
+# wt — worktree manager (shell wrapper for cd + herdr tab support)
+wt() {
+  local out exit_code
+  out=$(command wt "$@")
+  exit_code=$?
+  if [[ -n "$out" && -d "$out" ]]; then
+    cd "$out"
+    if [[ "$1" == "switch" && -n "$HERDR_ENV" ]] && command -v herdr >/dev/null 2>&1; then
+      local main_root
+      main_root=$(command wt main 2>/dev/null)
+      if [[ -n "$main_root" ]]; then
+        herdr worktree open --path "$out" --cwd "$main_root" --focus \
+          --trust-repository --label "$(basename "$out")" >/dev/null 2>&1
+      fi
+    fi
+  elif [[ -n "$out" ]]; then
+    if [[ ( "$1" == "rm" || "$1" == "remove" ) && -n "$HERDR_ENV" ]] \
+      && command -v herdr >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+      local main_root wsid
+      main_root=$(command wt main 2>/dev/null)
+      if [[ -n "$main_root" ]]; then
+        wsid=$(herdr worktree list --cwd "$main_root" --trust-repository 2>/dev/null \
+          | jq -r --arg p "$out" '.result.worktrees[] | select(.path == $p) | .open_workspace_id // empty')
+        [[ -n "$wsid" ]] && herdr workspace close "$wsid" >/dev/null 2>&1
+      fi
+    else
+      print -- "$out"
+    fi
+  fi
+  return $exit_code
+}
+```
+
+`herdr worktree open` is idempotent — calling it again for a path that already has a workspace
+open just focuses it, no duplicate tab. All herdr calls are best-effort: if herdr, `jq`,
+`$HERDR_ENV` are missing, or you didn't run `wt switch`, `wt` behaves exactly as before (plain
+`cd`, no herdr calls).
+
 ## Prompt integration
 
 `wt current-repo` prints `本 <repo>` when cwd is inside a linked worktree (not the main one), and nothing when it isn't. Add it to `~/.zshrc` for use in `PROMPT`/`RPROMPT` or Starship's `command` module:
@@ -138,6 +186,7 @@ wt config edit     # create it (with a commented template) and open in $EDITOR
 
 ```bash
 wt                          # fzf picker, enter to cd
+wt switch                   # alias for bare "wt"; herdr integration (if configured) only fires on this
 wt add <n> [b]              # add worktree at ../<n>, symlink .wt-include dirs
 wt rm [name]                # remove worktree (fzf if omitted)
 wt clone <url|owner/repo> [name]  # SSH bare clone into ./<name>/.git, fix fetch refspec
