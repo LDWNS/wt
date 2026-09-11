@@ -9,7 +9,16 @@ import (
 	"strings"
 )
 
+var cfg Config
+
 func main() {
+	var err error
+	cfg, err = loadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "wt: loading config: %v\n", err)
+		cfg = defaultConfig()
+	}
+
 	cmd := ""
 	args := os.Args[1:]
 	if len(args) > 0 {
@@ -17,7 +26,6 @@ func main() {
 		args = args[1:]
 	}
 
-	var err error
 	switch cmd {
 	case "":
 		err = cmdNavigate()
@@ -35,6 +43,8 @@ func main() {
 		err = cmdLink()
 	case "include":
 		err = cmdInclude(args)
+	case "config":
+		err = cmdConfig(args)
 	case "current-repo":
 		err = cmdCurrent()
 	case "completion":
@@ -162,7 +172,7 @@ func fzfSelect(items []worktreeEntry, prompt string) (string, error) {
 	}
 
 	fzf := exec.Command("fzf",
-		"--height=40%",
+		"--height="+cfg.FzfHeight,
 		"--reverse",
 		"--prompt="+prompt,
 		"--delimiter=\t",
@@ -190,7 +200,7 @@ func toMain() error {
 		return err
 	}
 	for _, v := range wts {
-		if v.branch == "main" {
+		if v.branch == cfg.DefaultBranch {
 			fmt.Println(v.path)
 		}
 	}
@@ -235,7 +245,11 @@ func cmdAdd(args []string) error {
 		return err
 	}
 
-	dest := filepath.Join(filepath.Dir(cwd), name)
+	rel := strings.ReplaceAll(cfg.WorktreeDir, "{name}", name)
+	dest := rel
+	if !filepath.IsAbs(dest) {
+		dest = filepath.Join(cwd, rel)
+	}
 
 	add := exec.Command("git", "-C", cwd, "worktree", "add", dest, branch)
 	add.Stdout = os.Stderr
@@ -380,7 +394,7 @@ func expandShorthand(url string) string {
 	if !strings.HasSuffix(url, ".git") {
 		url += ".git"
 	}
-	return "git@github.com:" + url
+	return "git@" + cfg.CloneHost + ":" + url
 }
 
 func cmdClone(args []string) error {
@@ -415,10 +429,10 @@ func cmdClone(args []string) error {
 	}
 
 	// bare clone omits the fetch refspec; add it so remote-tracking branches populate
-	cfg := exec.Command("git", "-C", dotgit, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
-	cfg.Stdout = os.Stderr
-	cfg.Stderr = os.Stderr
-	if err := cfg.Run(); err != nil {
+	gitCfg := exec.Command("git", "-C", dotgit, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+	gitCfg.Stdout = os.Stderr
+	gitCfg.Stderr = os.Stderr
+	if err := gitCfg.Run(); err != nil {
 		return err
 	}
 
@@ -429,12 +443,12 @@ func cmdClone(args []string) error {
 		return err
 	}
 
-	mainDir, err := filepath.Abs(filepath.Join(name, "main"))
+	mainDir, err := filepath.Abs(filepath.Join(name, cfg.DefaultBranch))
 	if err != nil {
 		return err
 	}
 
-	worktreeAdd := exec.Command("git", "-C", dotgit, "worktree", "add", mainDir, "main")
+	worktreeAdd := exec.Command("git", "-C", dotgit, "worktree", "add", mainDir, cfg.DefaultBranch)
 	worktreeAdd.Stdout = os.Stderr
 	worktreeAdd.Stderr = os.Stderr
 	if err := worktreeAdd.Run(); err != nil {
@@ -580,7 +594,7 @@ func cmdCurrent() error {
 		return nil // main worktree
 	}
 
-	fmt.Printf("木%s\n", filepath.Base(filepath.Dir(commonDir)))
+	fmt.Printf("%s%s\n", cfg.Icon, filepath.Base(filepath.Dir(commonDir)))
 	return nil
 }
 
@@ -635,6 +649,7 @@ _wt() {
                 'clone:clone a repo via SSH'
                 'link:symlink .wt-include dirs into current worktree'
                 'include:add path to .wt-include (git-excluded)'
+                'config:show/edit wt config'
                 'current-repo:print worktree icon+name for shell prompts'
                 'help:show help'
                 'completion:print shell completion script'
@@ -658,6 +673,9 @@ _wt() {
                 completion)
                     _values 'shell' zsh
                     ;;
+                config)
+                    _values 'subcommand' path edit
+                    ;;
             esac
             ;;
     esac
@@ -678,6 +696,7 @@ func printHelp() {
   wt list                  list all worktrees
   wt link                  symlink .wt-include dirs into current worktree
   wt include [path...]     add path(s) to .wt-include (creates it, git-excludes it); no args prints it
+  wt config [path|edit]    show effective config, or print/edit ~/.config/wt/config
   wt current-repo          print "本 <repo>" if cwd is a linked worktree, nothing otherwise (for shell prompts)
   wt completion zsh        print zsh completion script
 `)
