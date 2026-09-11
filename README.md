@@ -72,6 +72,11 @@ To make changing directories work, add this to your `~/.zshrc`.
 ```bash
 # wt — worktree manager (shell wrapper for cd support)
 wt() {
+  if [[ "$1" == "config" && "$2" == "edit" ]]; then
+    command wt "$@"
+    return $?
+  fi
+
   local out exit_code
   out=$(command wt "$@")
   exit_code=$?
