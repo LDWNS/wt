@@ -108,6 +108,24 @@ source <(wt completion zsh)
 > [!NOTE]
 > Don't forget to run `source .zshrc` or `zsh` for the changes to take effect.
 
+## Configuration
+
+`wt` reads `~/.config/wt/config` (or `$XDG_CONFIG_HOME/wt/config`), a plain `key = value` file, `#` for comments. Every key is optional — omit a line to keep its default.
+
+```bash
+wt config          # show effective config + whether the file was found
+wt config path     # print the config file path
+wt config edit     # create it (with a commented template) and open in $EDITOR
+```
+
+| key              | default      | controls                                                        |
+|------------------|--------------|------------------------------------------------------------------|
+| `worktree_dir`   | `../{name}`  | where `wt add <name>` creates the worktree; `{name}` substituted |
+| `icon`           | `木`         | icon `wt current-repo` prints                                    |
+| `clone_host`     | `github.com` | host used to expand `owner/repo` shorthand in `wt clone`          |
+| `default_branch` | `main`       | branch treated as the repo's main branch                         |
+| `fzf_height`     | `40%`        | `--height` passed to fzf in the picker                            |
+
 ## Dependencies
 
 - git
@@ -126,6 +144,7 @@ wt clone <url|owner/repo> [name]  # SSH bare clone into ./<name>/.git, fix fetch
                                   # "owner/repo" shorthand expands to git@github.com:owner/repo.git
 wt list                     # list all worktrees
 wt link                     # symlink .wt-include dirs into current worktree
+wt config [path|edit]       # show effective config, or print/edit ~/.config/wt/config
 wt current-repo             # print "本 <repo>" if cwd is a linked worktree, for shell prompts
 wt completion zsh           # print zsh completion script
 ```
