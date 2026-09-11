@@ -1,38 +1,68 @@
 # Worktree manager
+
 Buddy, worktrees are now easy. Don't even worry about it.
 
 ## Usage
 
-The workflow is all that matters here.
-Follow it and be happy.
-
-### Dependencies
-- git
-- [go](https://go.dev/doc/install)
-- [fzf](https://github.com/junegunn/fzf) (`brew install fzf`)
-
-### Setup
-
-1. **_Crucial_**: `wt clone <ssh url>` - this clones as a bare repository
-2. `cd` to repo
-3. `git worktree add main`
-4. `cd main`
+**_Crucial_**: `wt clone <ssh url|owner/repo>` - this clones as a bare repository. `owner/repo` shorthand expands to `git@github.com:owner/repo.git`
+This creates the desired package structure:
+```
+wt
+├── main            # main branch
+├── feat
+│   └── create-makefile
+└── docs
+    └── update-readme
+```
 
 ### Workflow
 
 `wt add <n> [b]` - sets up a worktree named `<n>`, optionally tracking branch `[b]`.
+`wt` - launches `fzf` with the worktrees you can check out.
 `wt rm` - launches `fzf` with the worktrees you can remove.
- 
+
 Easy right?
 
-## Build
+## Install
+
+New machine, one command:
+
+```bash
+make install
+```
+
+This runs, in order:
+
+1. `deps` - checks `git`, `go`, `fzf` are on `$PATH`, fails fast on the missing one
+2. `build` - `go build -o wt .`
+3. copies `wt` into `$(go env GOBIN)`, falling back to `~/go/bin`
+
+> [!NOTE] > `~/go/bin` is where `go install`/this Makefile puts binaries - it's separate from wherever the `go` command itself lives (e.g. `/opt/homebrew/bin/go`). Having `go` on `$PATH` does **not** mean `~/go/bin` is. `make install` checks and warns if it's missing, e.g.:
+>
+> ```bash
+> export PATH="$HOME/go/bin:$PATH"
+> ```
+>
+> Add that to `~/.zshrc` if you see the warning, then `source ~/.zshrc`.
+
+Other targets:
+
+```bash
+make build      # just go build -o wt
+make deps       # check git, go, fzf are installed
+make uninstall  # remove the installed binary
+make clean      # remove the local ./wt build artifact
+make help       # list targets (also runs on bare `make`)
+```
+
+Once `make install` finishes without a PATH warning, `wt` resolves to the real binary. The steps below (shell wrapper, completion) are still manual - `make install` prints them as a reminder each run.
+
+Prefer to build by hand instead of `make`?
 
 ```bash
 go build -o wt
+export PATH=$HOME/<path to cloned directory>/wt:$PATH
 ```
-
-> [!NOTE]
-> Add this to your path, e.g. `export PATH=$HOME/<path to cloned directory>/wt:$PATH`
 
 ## Change directories
 
@@ -77,13 +107,22 @@ source <(wt completion zsh)
 > [!NOTE]
 > Don't forget to run `source .zshrc` or `zsh` for the changes to take effect.
 
+## Dependencies
+
+- git
+- [go](https://go.dev/doc/install)
+- [fzf](https://github.com/junegunn/fzf)
+
+`make deps` checks these are on `$PATH` for you.
+
 ## All options
 
 ```bash
 wt                          # fzf picker, enter to cd
 wt add <n> [b]              # add worktree at ../<n>, symlink .wt-include dirs
 wt rm [name]                # remove worktree (fzf if omitted)
-wt clone <url> [name]       # SSH bare clone into ./<name>/.git, fix fetch refspec
+wt clone <url|owner/repo> [name]  # SSH bare clone into ./<name>/.git, fix fetch refspec
+                                  # "owner/repo" shorthand expands to git@github.com:owner/repo.git
 wt list                     # list all worktrees
 wt link                     # symlink .wt-include dirs into current worktree
 wt current-repo             # print "本 <repo>" if cwd is a linked worktree, for shell prompts
