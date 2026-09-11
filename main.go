@@ -370,14 +370,28 @@ func sshURLName(url string) string {
 	return strings.TrimSuffix(base, ".git")
 }
 
+// expandShorthand turns a GitHub "owner/repo" shorthand into a full SSH URL
+// (git@github.com:owner/repo.git). Anything already containing "@" or "://"
+// is assumed to be a full URL and is returned unchanged.
+func expandShorthand(url string) string {
+	if strings.Contains(url, "@") || strings.Contains(url, "://") {
+		return url
+	}
+	if !strings.HasSuffix(url, ".git") {
+		url += ".git"
+	}
+	return "git@github.com:" + url
+}
+
 func cmdClone(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: wt clone <ssh-url> [name]")
+		return fmt.Errorf("usage: wt clone <ssh-url|owner/repo> [name]")
 	}
 	url := args[0]
 	if strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://") {
 		return fmt.Errorf("only SSH clone supported (use git@host:user/repo.git)")
 	}
+	url = expandShorthand(url)
 
 	name := sshURLName(url)
 	if len(args) > 1 {
@@ -659,7 +673,8 @@ func printHelp() {
   wt              fzf picker, enter to cd
   wt add <n> [b]           add worktree at ../<n>, symlink .wt-include dirs
   wt rm [name] [--force]   remove worktree (fzf if omitted); refuses if dirty/unpushed
-  wt clone <url> [name]   SSH bare clone into ./<name>/.git, fix fetch refspec
+  wt clone <url|owner/repo> [name]   SSH bare clone into ./<name>/.git, fix fetch refspec
+                          "owner/repo" shorthand expands to git@github.com:owner/repo.git
   wt list                  list all worktrees
   wt link                  symlink .wt-include dirs into current worktree
   wt include [path...]     add path(s) to .wt-include (creates it, git-excludes it); no args prints it
