@@ -37,7 +37,8 @@ This runs, in order:
 2. `build` - `go build -o wt .`
 3. copies `wt` into `$(go env GOBIN)`, falling back to `~/go/bin`
 
-> [!NOTE] > `~/go/bin` is where `go install`/this Makefile puts binaries - it's separate from wherever the `go` command itself lives (e.g. `/opt/homebrew/bin/go`). Having `go` on `$PATH` does **not** mean `~/go/bin` is. `make install` checks and warns if it's missing, e.g.:
+> [!NOTE] 
+> `~/go/bin` is where `go install`/this Makefile puts binaries - it's separate from wherever the `go` command itself lives (e.g. `/opt/homebrew/bin/go`). Having `go` on `$PATH` does **not** mean `~/go/bin` is. `make install` checks and warns if it's missing, e.g.:
 >
 > ```bash
 > export PATH="$HOME/go/bin:$PATH"
