@@ -69,7 +69,7 @@ export PATH=$HOME/<path to cloned directory>/wohta:$PATH
 
 To make changing directories work, add this to your `~/.zshrc`.
  
-> [!WARNING]
+> [!IMPORTANT]
 > Highly recommended
 
 ```bash
