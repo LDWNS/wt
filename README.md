@@ -72,11 +72,6 @@ To make changing directories work, add this to your `~/.zshrc`.
 ```bash
 # wt — worktree manager (shell wrapper for cd support)
 wt() {
-  if [[ "$1" == "config" && "$2" == "edit" ]]; then
-    command wt "$@"
-    return $?
-  fi
-
   local out exit_code
   out=$(command wt "$@")
   exit_code=$?
@@ -120,7 +115,6 @@ source <(wt completion zsh)
 ```bash
 wt config          # show effective config + whether the file was found
 wt config path     # print the config file path
-wt config edit     # create it (with a commented template) and open in $EDITOR
 ```
 
 | key              | default      | controls                                                        |
@@ -149,7 +143,7 @@ wt clone <url|owner/repo> [name]  # SSH bare clone into ./<name>/.git, fix fetch
                                   # "owner/repo" shorthand expands to git@github.com:owner/repo.git
 wt list                     # list all worktrees
 wt link                     # symlink .wt-include dirs into current worktree
-wt config [path|edit]       # show effective config, or print/edit ~/.config/wt/config
+wt config [path]            # show effective config, or print ~/.config/wt/config
 wt current-repo             # print "本 <repo>" if cwd is a linked worktree, for shell prompts
 wt completion zsh           # print zsh completion script
 ```

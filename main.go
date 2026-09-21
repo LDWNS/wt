@@ -649,7 +649,7 @@ _wt() {
                 'clone:clone a repo via SSH'
                 'link:symlink .wt-include dirs into current worktree'
                 'include:add path to .wt-include (git-excluded)'
-                'config:show/edit wt config'
+                'config:show wt config'
                 'current-repo:print worktree icon+name for shell prompts'
                 'help:show help'
                 'completion:print shell completion script'
@@ -674,7 +674,7 @@ _wt() {
                     _values 'shell' zsh
                     ;;
                 config)
-                    _values 'subcommand' path edit
+                    _values 'subcommand' path
                     ;;
             esac
             ;;
@@ -696,7 +696,7 @@ func printHelp() {
   wt list                  list all worktrees
   wt link                  symlink .wt-include dirs into current worktree
   wt include [path...]     add path(s) to .wt-include (creates it, git-excludes it); no args prints it
-  wt config [path|edit]    show effective config, or print/edit ~/.config/wt/config
+  wt config [path]    show effective config, or print ~/.config/wt/config
   wt current-repo          print "本 <repo>" if cwd is a linked worktree, nothing otherwise (for shell prompts)
   wt completion zsh        print zsh completion script
 `)

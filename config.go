@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -119,7 +118,7 @@ const configTemplate = `# wt config — one "key = value" per line, "#" for comm
 # fzf_height = 40%
 `
 
-// cmdConfig implements `wt config [path|edit]`.
+// cmdConfig implements `wt config [path]`.
 func cmdConfig(args []string) error {
 	path, err := configPath()
 	if err != nil {
@@ -136,29 +135,6 @@ func cmdConfig(args []string) error {
 		fmt.Println(path)
 		return nil
 
-	case "edit":
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-				return err
-			}
-			if err := os.WriteFile(path, []byte(configTemplate), 0o644); err != nil {
-				return err
-			}
-			fmt.Fprintf(os.Stderr, "created %s\n", path)
-		} else if err != nil {
-			return err
-		}
-
-		editor := os.Getenv("EDITOR")
-		if editor == "" {
-			editor = "vi"
-		}
-		e := exec.Command(editor, path)
-		e.Stdin = os.Stdin
-		e.Stdout = os.Stdout
-		e.Stderr = os.Stderr
-		return e.Run()
-
 	case "":
 		exists := "not found; using defaults"
 		if _, err := os.Stat(path); err == nil {
@@ -173,6 +149,6 @@ func cmdConfig(args []string) error {
 		return nil
 
 	default:
-		return fmt.Errorf("usage: wt config [path|edit]")
+		return fmt.Errorf("usage: wt config [path]")
 	}
 }
