@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -122,7 +123,13 @@ func gitToplevel() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func symlinkIncluded(src, dst string) error {
+// applyIncluded reads src/.wt-include and, for each listed path, either
+// symlinks or copies it from src into dst. A line prefixed with "copy "
+// copies the path (independent, non-symlink) instead of linking it —
+// useful for per-worktree files like .env that shouldn't be shared. A
+// copy line may also carry a destination, "copy <src> -> <dst>", to copy
+// into a different relative path in the new worktree.
+func applyIncluded(src, dst string) error {
 	f, err := os.Open(filepath.Join(src, ".wt-include"))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -135,25 +142,91 @@ func symlinkIncluded(src, dst string) error {
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		println(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		srcDir := filepath.Join(src, line)
-		dstLink := filepath.Join(dst, line)
-		if _, err := os.Stat(srcDir); err != nil {
+
+		copyMode := false
+		if rest, ok := strings.CutPrefix(line, "copy "); ok {
+			copyMode = true
+			line = strings.TrimSpace(rest)
+		}
+
+		srcRel, dstRel := line, line
+		if copyMode {
+			if s, d, ok := strings.Cut(line, " -> "); ok {
+				srcRel = strings.TrimSpace(s)
+				dstRel = strings.TrimSpace(d)
+			}
+		}
+
+		srcPath := filepath.Join(src, srcRel)
+		dstPath := filepath.Join(dst, dstRel)
+		if _, err := os.Stat(srcPath); err != nil {
 			continue
 		}
-		if _, err := os.Lstat(dstLink); err == nil {
+		if _, err := os.Lstat(dstPath); err == nil {
 			continue
 		}
-		if err := os.Symlink(srcDir, dstLink); err != nil {
+
+		if copyMode {
+			if err := copyPath(srcPath, dstPath); err != nil {
+				fmt.Fprintf(os.Stderr, "  copy %s: %v\n", line, err)
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "  copied: %s -> %s\n", srcRel, dstRel)
+			continue
+		}
+
+		if err := os.Symlink(srcPath, dstPath); err != nil {
 			fmt.Fprintf(os.Stderr, "  link %s: %v\n", line, err)
 			continue
 		}
 		fmt.Fprintf(os.Stderr, "  linked: %s\n", line)
 	}
 	return scanner.Err()
+}
+
+// copyPath copies src to dst, recursing into directories. Symlinks in the
+// source tree are followed and copied as their target's contents.
+func copyPath(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		if err := os.MkdirAll(dst, info.Mode().Perm()); err != nil {
+			return err
+		}
+		entries, err := os.ReadDir(src)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			if err := copyPath(filepath.Join(src, entry.Name()), filepath.Join(dst, entry.Name())); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	return err
 }
 
 func fzfSelect(items []worktreeEntry, prompt string) (string, error) {
@@ -263,7 +336,7 @@ func cmdAdd(args []string) error {
 		}
 	}
 	fmt.Println(dest)
-	return symlinkIncluded(cwd, dest)
+	return applyIncluded(cwd, dest)
 }
 
 func worktreeSafetyIssue(wtPath string) (string, error) {
@@ -471,7 +544,7 @@ func cmdLink() error {
 	if current == mainRoot {
 		return fmt.Errorf("already in main worktree")
 	}
-	return symlinkIncluded(mainRoot, current)
+	return applyIncluded(mainRoot, current)
 }
 
 func gitCommonDir(root string) (string, error) {
@@ -515,6 +588,17 @@ func cmdInclude(args []string) error {
 	}
 	incFile := filepath.Join(root, ".wt-include")
 
+	copyMode := false
+	var rest []string
+	for _, a := range args {
+		if a == "--copy" {
+			copyMode = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	args = rest
+
 	if len(args) == 0 {
 		data, err := os.ReadFile(incFile)
 		if os.IsNotExist(err) {
@@ -528,15 +612,30 @@ func cmdInclude(args []string) error {
 		return nil
 	}
 
-	for _, path := range args {
-		added, err := appendLineIfMissing(incFile, path)
+	// --copy <src> <dst> registers a single entry with a destination path;
+	// otherwise every arg is added as its own (optionally "copy ") entry.
+	var lines []string
+	if copyMode && len(args) == 2 {
+		lines = []string{"copy " + args[0] + " -> " + args[1]}
+	} else {
+		for _, path := range args {
+			line := path
+			if copyMode {
+				line = "copy " + path
+			}
+			lines = append(lines, line)
+		}
+	}
+
+	for _, line := range lines {
+		added, err := appendLineIfMissing(incFile, line)
 		if err != nil {
 			return err
 		}
 		if added {
-			fmt.Fprintf(os.Stderr, "  added: %s\n", path)
+			fmt.Fprintf(os.Stderr, "  added: %s\n", line)
 		} else {
-			fmt.Fprintf(os.Stderr, "  already present: %s\n", path)
+			fmt.Fprintf(os.Stderr, "  already present: %s\n", line)
 		}
 	}
 
@@ -647,7 +746,7 @@ _wt() {
                 'rm:remove a worktree'
                 'remove:remove a worktree'
                 'clone:clone a repo via SSH'
-                'link:symlink .wt-include dirs into current worktree'
+                'link:symlink/copy .wt-include paths into current worktree'
                 'include:add path to .wt-include (git-excluded)'
                 'config:show wt config'
                 'current-repo:print worktree icon+name for shell prompts'
@@ -689,13 +788,15 @@ compdef _wt wt
 func printHelp() {
 	fmt.Print(`wt — worktree manager
   wt              fzf picker, enter to cd
-  wt add <n> [b]           add worktree at ../<n>, symlink .wt-include dirs
+  wt add <n> [b]           add worktree at ../<n>, symlink/copy .wt-include paths
   wt rm [name] [--force]   remove worktree (fzf if omitted); refuses if dirty/unpushed
   wt clone <url|owner/repo> [name]   SSH bare clone into ./<name>/.git, fix fetch refspec
                           "owner/repo" shorthand expands to git@github.com:owner/repo.git
   wt list                  list all worktrees
-  wt link                  symlink .wt-include dirs into current worktree
+  wt link                  symlink/copy .wt-include paths into current worktree
   wt include [path...]     add path(s) to .wt-include (creates it, git-excludes it); no args prints it
+                          --copy: copy the path instead of symlinking it (e.g. per-worktree .env files)
+                          --copy <src> <dst>: copy src to a different relative dst path
   wt config [path]    show effective config, or print ~/.config/wt/config
   wt current-repo          print "本 <repo>" if cwd is a linked worktree, nothing otherwise (for shell prompts)
   wt completion zsh        print zsh completion script

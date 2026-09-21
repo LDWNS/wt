@@ -1,7 +1,7 @@
 # wt — worktree manager. Run `make help` for available targets.
 # Typical setup on a new machine: make install
 
-BINARY := wt
+BINARY := wohta
 INSTALL_DIR := $(HOME)/go/bin
 GOBIN := $(shell go env GOBIN 2>/dev/null)
 ifneq ($(GOBIN),)
